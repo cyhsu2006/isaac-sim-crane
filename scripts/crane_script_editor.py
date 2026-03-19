@@ -127,9 +127,7 @@ make_box("/World/Warehouse/Wall_R", (0.3, 32, 10), (25, 0, 5), WALL_COLOR)
 make_box("/World/Warehouse/Wall_B", (50, 0.3, 10), (0, -16, 5), WALL_COLOR)
 make_box("/World/Warehouse/Wall_F", (50, 0.3, 6), (0, 16, 8), WALL_COLOR)
 
-# 半透明屋頂樑
-for i, x in enumerate(np.linspace(-20, 20, 9)):
-    make_box(f"/World/Warehouse/RoofBeam_{i}", (0.3, 32, 0.4), (x, 0, RAIL_HEIGHT + 3), GRAY, opacity=0.2)
+# 屋頂樑已移除（避免與天車碰撞）
 
 # A 儲位標記
 make_box("/World/Warehouse/ZoneA", (6, 6, 0.03), (A_POS[0], A_POS[1], 0.015), Gf.Vec3f(0.15, 0.3, 0.15))
