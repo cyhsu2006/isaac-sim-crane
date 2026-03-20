@@ -49,8 +49,6 @@ CLAMP_CLOSED = COIL_WIDTH / 2 + HOOK_VERT_D / 2      # ≈0.66m
 
 # 座標定義
 PARK_POS = (-18.0, 0.0)     # 靠岸點（軌道最左側）
-A_POS = (-8.0, -4.0)        # A 儲位
-B_POS = (8.0, -4.0)         # B 儲位
 
 # 顏色
 YELLOW = Gf.Vec3f(0.9, 0.6, 0.1)
@@ -167,44 +165,65 @@ make_box("/World/Warehouse/Wall_F", (50, 0.3, 6), (0, 16, 8), WALL_COLOR)
 
 # 屋頂樑已移除（避免與天車碰撞）
 
-# A 儲位標記
-make_box("/World/Warehouse/ZoneA", (6, 6, 0.03), (A_POS[0], A_POS[1], 0.015), Gf.Vec3f(0.15, 0.3, 0.15))
-make_box("/World/Warehouse/ZoneA_Text", (1.5, 0.5, 0.02), (A_POS[0], A_POS[1] - 3.5, 0.02), Gf.Vec3f(0.2, 0.5, 0.2))
+# ═══════════════════════════════════════════════════════════════════
+# 儲位系統 — 每個儲位有枕木，大部分放鋼捲，留兩個空位
+# ═══════════════════════════════════════════════════════════════════
 
-# B 儲位標記
-make_box("/World/Warehouse/ZoneB", (6, 6, 0.03), (B_POS[0], B_POS[1], 0.015), Gf.Vec3f(0.15, 0.15, 0.3))
-make_box("/World/Warehouse/ZoneB_Text", (1.5, 0.5, 0.02), (B_POS[0], B_POS[1] - 3.5, 0.02), Gf.Vec3f(0.2, 0.2, 0.5))
+# 所有儲位座標（4 列 x 4 行 = 16 個儲位）
+SLOT_POSITIONS = []
+for row, y in enumerate([-8, -4, 0, 4]):
+    for col, x in enumerate([-15, -9, 9, 15]):
+        SLOT_POSITIONS.append((x, y))
+
+NUM_SLOTS = len(SLOT_POSITIONS)
+
+# 每個儲位建立枕木
+for i, (sx, sy) in enumerate(SLOT_POSITIONS):
+    make_box(f"/World/Warehouse/Chock_{i}_L", (COIL_WIDTH + 0.2, 0.2, 0.3), (sx, sy - 0.5, 0.15), CHOCK_COLOR)
+    make_box(f"/World/Warehouse/Chock_{i}_R", (COIL_WIDTH + 0.2, 0.2, 0.3), (sx, sy + 0.5, 0.15), CHOCK_COLOR)
+
+# 儲位狀態：哪些有鋼捲，哪些是空的
+# 隨機選 2 個空位
+np.random.seed(42)
+empty_slots = set(np.random.choice(NUM_SLOTS, 2, replace=False))
+
+# 鋼捲資料
+coil_colors = [
+    Gf.Vec3f(0.55, 0.55, 0.58), Gf.Vec3f(0.40, 0.40, 0.43),
+    Gf.Vec3f(0.50, 0.50, 0.55), Gf.Vec3f(0.58, 0.55, 0.52),
+    Gf.Vec3f(0.45, 0.45, 0.48), Gf.Vec3f(0.52, 0.52, 0.56),
+]
+
+class SlotInfo:
+    """儲位資訊"""
+    def __init__(self, idx, x, y):
+        self.idx = idx
+        self.x = x
+        self.y = y
+        self.has_coil = idx not in empty_slots
+        self.coil_path = f"/World/Coils/Coil_{idx}"
+        self.hole_path = f"/World/Coils/Hole_{idx}"
+        self.outer_r = 0.85 + np.random.uniform(-0.05, 0.1)
+        self.width = 1.0 + np.random.uniform(-0.1, 0.2)
+        self.color = coil_colors[idx % len(coil_colors)]
+        self.z = self.outer_r + 0.3
+
+slots = [SlotInfo(i, x, y) for i, (x, y) in enumerate(SLOT_POSITIONS)]
+
+# 建立鋼捲（有鋼捲的儲位才建）
+for s in slots:
+    if s.has_coil:
+        make_cylinder(s.coil_path, s.outer_r, s.width, (s.x, s.y, s.z), s.color, rot=(0, 90, 0))
+        make_cylinder(s.hole_path, COIL_INNER_R, s.width + 0.02, (s.x, s.y, s.z),
+                      Gf.Vec3f(0.08, 0.08, 0.08), rot=(0, 90, 0))
+    else:
+        # 空位也建立隱藏的鋼捲（方便後續移入時顯示）
+        make_cylinder(s.coil_path, COIL_OUTER_R, COIL_WIDTH, (s.x, s.y, -10), STEEL_COLOR, rot=(0, 90, 0))
+        make_cylinder(s.hole_path, COIL_INNER_R, COIL_WIDTH + 0.02, (s.x, s.y, -10),
+                      Gf.Vec3f(0.08, 0.08, 0.08), rot=(0, 90, 0))
 
 # 靠岸點標記
 make_box("/World/Warehouse/ParkZone", (4, 4, 0.03), (PARK_POS[0], PARK_POS[1], 0.015), Gf.Vec3f(0.3, 0.3, 0.15))
-make_box("/World/Warehouse/ParkText", (1.5, 0.5, 0.02), (PARK_POS[0], PARK_POS[1] - 2.5, 0.02), Gf.Vec3f(0.5, 0.5, 0.2))
-
-# A 點枕木
-make_box("/World/Warehouse/ChockA_L", (COIL_WIDTH + 0.2, 0.2, 0.3), (A_POS[0], A_POS[1] - 0.5, 0.15), CHOCK_COLOR)
-make_box("/World/Warehouse/ChockA_R", (COIL_WIDTH + 0.2, 0.2, 0.3), (A_POS[0], A_POS[1] + 0.5, 0.15), CHOCK_COLOR)
-
-# B 點枕木
-make_box("/World/Warehouse/ChockB_L", (COIL_WIDTH + 0.2, 0.2, 0.3), (B_POS[0], B_POS[1] - 0.5, 0.15), CHOCK_COLOR)
-make_box("/World/Warehouse/ChockB_R", (COIL_WIDTH + 0.2, 0.2, 0.3), (B_POS[0], B_POS[1] + 0.5, 0.15), CHOCK_COLOR)
-
-# 其他倉庫內鋼捲（背景裝飾，不參與吊運）
-bg_coils = [
-    (-15, -8), (-12, -8), (-9, -8),
-    (-15, 4), (-12, 4),
-    (12, -8), (15, -8),
-    (12, 4), (15, 4),
-]
-for i, (cx, cy) in enumerate(bg_coils):
-    r = 0.85 + np.random.uniform(-0.05, 0.1)
-    w = 1.0 + np.random.uniform(-0.1, 0.2)
-    col = Gf.Vec3f(0.45 + np.random.uniform(0, 0.1),
-                   0.45 + np.random.uniform(0, 0.1),
-                   0.48 + np.random.uniform(0, 0.1))
-    make_box(f"/World/Coils/BgChock_{i}_L", (w + 0.2, 0.2, 0.3), (cx, cy - 0.5, 0.15), CHOCK_COLOR)
-    make_box(f"/World/Coils/BgChock_{i}_R", (w + 0.2, 0.2, 0.3), (cx, cy + 0.5, 0.15), CHOCK_COLOR)
-    make_cylinder(f"/World/Coils/BgCoil_{i}", r, w, (cx, cy, r + 0.3), col, rot=(0, 90, 0))
-    make_cylinder(f"/World/Coils/BgHole_{i}", COIL_INNER_R, w + 0.02, (cx, cy, r + 0.3),
-                  Gf.Vec3f(0.08, 0.08, 0.08), rot=(0, 90, 0))
 
 # 頂燈
 for i, x in enumerate(np.linspace(-15, 15, 4)):
@@ -224,17 +243,7 @@ scene = UsdPhysics.Scene.Define(stage, "/World/PhysicsScene")
 scene.CreateGravityDirectionAttr(Gf.Vec3f(0, 0, -1))
 scene.CreateGravityMagnitudeAttr(9.81)
 
-# ═══════════════════════════════════════════════════════════════════
-# 被吊運的鋼捲（開始放在 A 點）
-# ═══════════════════════════════════════════════════════════════════
-
-COIL_PATH = "/World/Coils/ActiveCoil"
-COIL_HOLE_PATH = "/World/Coils/ActiveCoil_Hole"
-
-make_cylinder(COIL_PATH, COIL_OUTER_R, COIL_WIDTH,
-              (A_POS[0], A_POS[1], COIL_Z_ON_CHOCK), STEEL_COLOR, rot=(0, 90, 0))
-make_cylinder(COIL_HOLE_PATH, COIL_INNER_R, COIL_WIDTH + 0.02,
-              (A_POS[0], A_POS[1], COIL_Z_ON_CHOCK), Gf.Vec3f(0.08, 0.08, 0.08), rot=(0, 90, 0))
+# （鋼捲已在儲位系統中建立）
 
 # ═══════════════════════════════════════════════════════════════════
 # 天車結構
@@ -463,11 +472,11 @@ class CableElasticity:
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 循環吊運控制器（含加減速）
-# 路線：靠岸 → A夾取 → B放下 → 靠岸 → B夾取 → A放下 → 靠岸 → 循環
+# 隨機吊運控制器
+# 隨機選一顆鋼捲 → 夾到空位 → 原位變空位 → 無限循環
 # ═══════════════════════════════════════════════════════════════════
 
-class CycleCraneController:
+class RandomCraneController:
     def __init__(self):
         self.bridge_x = PARK_POS[0]
         self.trolley_y = PARK_POS[1]
@@ -488,58 +497,56 @@ class CycleCraneController:
         self.prev_hoist_z = LIFT_HEIGHT
         self.holding = False
 
-        # 鋼捲目前位置（開始在 A 點）
-        self.coil_at = "A"  # "A" or "B"
-        self.coil_x = A_POS[0]
-        self.coil_y = A_POS[1]
-        self.coil_z = COIL_Z_ON_CHOCK
-
-        self.pickup_hook_z = COIL_Z_ON_CHOCK + 2.5
-        self.drop_hook_z = COIL_Z_ON_CHOCK + 2.5
+        # 當前吊運的鋼捲
+        self.current_coil = None   # SlotInfo
+        self.target_slot = None    # SlotInfo（目標空位）
 
         self.step_idx = 0
         self.pause_timer = 0.0
         self.last_time = time.time()
         self.cycle_count = 0
 
+        self._pick_next_task()
+
+    def _pick_next_task(self):
+        """隨機選一顆鋼捲和一個空位"""
+        occupied = [s for s in slots if s.has_coil]
+        empty = [s for s in slots if not s.has_coil]
+
+        if not occupied or not empty:
+            print("錯誤：沒有可用的鋼捲或空位")
+            return
+
+        self.current_coil = np.random.choice(occupied)
+        self.target_slot = np.random.choice(empty)
+
+        self.cycle_count += 1
+        print(f"=== 第 {self.cycle_count} 趟："
+              f"儲位 {self.current_coil.idx}({self.current_coil.x},{self.current_coil.y}) → "
+              f"儲位 {self.target_slot.idx}({self.target_slot.x},{self.target_slot.y}) ===")
+
         self._build_steps()
 
     def _build_steps(self):
-        """建立當前循環的步驟"""
-        if self.coil_at == "A":
-            pick = A_POS
-            drop = B_POS
-            self.next_coil_at = "B"
-        else:
-            pick = B_POS
-            drop = A_POS
-            self.next_coil_at = "A"
-
-        # 水平段在 hook_z - 2.1，要對準鋼捲中心 COIL_Z_ON_CHOCK
-        hz_pick = COIL_Z_ON_CHOCK + 2.1
+        """建立吊運步驟"""
+        pick = self.current_coil
+        drop = self.target_slot
+        hz_pick = pick.z + 2.1    # 水平段對準鋼捲中心
         hz_drop = COIL_Z_ON_CHOCK + 2.1
 
         # (name, bridge_x, trolley_y, hoist_z, clamp, holding, pause)
         self.steps = [
-            # 從靠岸點出發，移到取貨點上方（水平移動後等擺盪衰減）
-            ("移動到取貨點上方",   pick[0], pick[1], LIFT_HEIGHT, CLAMP_OPEN,   False, 3.0),
-            # 下降到鋼捲
-            ("下降到鋼捲",        pick[0], pick[1], hz_pick,     CLAMP_OPEN,   False, 0.5),
-            # 夾具合攏夾取
-            ("夾取鋼捲",          pick[0], pick[1], hz_pick,     CLAMP_CLOSED, False, 1.0),
-            # 起吊
-            ("起吊",              pick[0], pick[1], LIFT_HEIGHT, CLAMP_CLOSED, True,  1.0),
-            # 移到放貨點上方（水平移動後等擺盪衰減）
-            ("移動到放貨點上方",   drop[0], drop[1], LIFT_HEIGHT, CLAMP_CLOSED, True,  4.0),
-            # 下降放置
-            ("下降放置",          drop[0], drop[1], hz_drop,     CLAMP_CLOSED, True,  0.5),
-            # 夾具收縮釋放
-            ("釋放鋼捲",          drop[0], drop[1], hz_drop,     CLAMP_OPEN,   False, 1.0),
-            # 空載上升
-            ("空載上升",          drop[0], drop[1], LIFT_HEIGHT, CLAMP_OPEN,   False, 0.5),
-            # 回到靠岸點（水平移動後等擺盪衰減）
-            ("回到靠岸點",  PARK_POS[0], PARK_POS[1], LIFT_HEIGHT, CLAMP_OPEN, False, 3.0),
+            ("移動到取貨點上方",  pick.x, pick.y, LIFT_HEIGHT, CLAMP_OPEN,   False, 3.0),
+            ("下降到鋼捲",       pick.x, pick.y, hz_pick,     CLAMP_OPEN,   False, 0.5),
+            ("夾取鋼捲",         pick.x, pick.y, hz_pick,     CLAMP_CLOSED, False, 1.0),
+            ("起吊",             pick.x, pick.y, LIFT_HEIGHT, CLAMP_CLOSED, True,  1.0),
+            ("移動到放貨點上方",  drop.x, drop.y, LIFT_HEIGHT, CLAMP_CLOSED, True,  4.0),
+            ("下降放置",         drop.x, drop.y, hz_drop,     CLAMP_CLOSED, True,  0.5),
+            ("釋放鋼捲",         drop.x, drop.y, hz_drop,     CLAMP_OPEN,   False, 1.0),
+            ("空載上升",         drop.x, drop.y, LIFT_HEIGHT, CLAMP_OPEN,   False, 0.5),
+            ("回到靠岸點", PARK_POS[0], PARK_POS[1], LIFT_HEIGHT, CLAMP_OPEN, False, 2.0),
         ]
+        self.step_idx = 0
 
     def update(self):
         now = time.time()
@@ -582,31 +589,36 @@ class CycleCraneController:
             # 夾取時標記
             if "夾取" in name:
                 self.holding = True
+                self.current_coil.has_coil = False  # 原位變空
 
-            # 釋放時更新鋼捲位置
+            # 釋放時更新鋼捲位置到目標儲位
             if "釋放" in name:
                 self.holding = False
-                # 放到目標位置
-                if self.coil_at == "A":
-                    self.coil_x = B_POS[0]
-                    self.coil_y = B_POS[1]
-                else:
-                    self.coil_x = A_POS[0]
-                    self.coil_y = A_POS[1]
-                self.coil_z = COIL_Z_ON_CHOCK
-                set_translate(COIL_PATH, (self.coil_x, self.coil_y, self.coil_z))
-                set_translate(COIL_HOLE_PATH, (self.coil_x, self.coil_y, self.coil_z))
+                c = self.current_coil
+                t = self.target_slot
+                # 鋼捲放到目標位置
+                t.has_coil = True
+                t.outer_r = c.outer_r
+                t.width = c.width
+                t.color = c.color
+                t.z = c.outer_r + 0.3
+                # 移動視覺物件到目標位
+                set_translate(c.coil_path, (t.x, t.y, t.z))
+                set_translate(c.hole_path, (t.x, t.y, t.z))
+                # 隱藏原位鋼捲（已被移走）
+                # 交換 path：目標位的隱藏鋼捲移到原位下方，原位鋼捲已到目標位
+                set_translate(t.coil_path, (c.x, c.y, -10))  # 隱藏目標位的空殼
+                set_translate(t.hole_path, (c.x, c.y, -10))
+                # 交換 path 引用
+                c.coil_path, t.coil_path = t.coil_path, c.coil_path
+                c.hole_path, t.hole_path = t.hole_path, c.hole_path
+                print(f"  放下於儲位 {t.idx}")
 
             self.step_idx += 1
 
-            # 循環完成，重建步驟
+            # 完成一趟，選下一顆
             if self.step_idx >= len(self.steps):
-                self.step_idx = 0
-                self.coil_at = self.next_coil_at
-                self.cycle_count += 1
-                self._build_steps()
-                print(f"=== 第 {self.cycle_count + 1} 趟開始 "
-                      f"({'A→B' if self.coil_at == 'A' else 'B→A'}) ===")
+                self._pick_next_task()
 
         self._update_visual(dt)
 
@@ -735,25 +747,26 @@ class CycleCraneController:
         set_translate("/World/Crane/Bridge/HookR_Foot", (hook_r_x - HOOK_FOOT_LEN / 2, hang_y, hang_z - 2.1))
 
         # 鋼捲跟隨（與夾具為一體剛體，相同擺盪）
-        if self.holding:
+        if self.holding and self.current_coil:
             coil_z = hang_z - 2.1
-            set_translate(COIL_PATH, (hang_x, hang_y, coil_z))
-            set_translate(COIL_HOLE_PATH, (hang_x, hang_y, coil_z))
+            set_translate(self.current_coil.coil_path, (hang_x, hang_y, coil_z))
+            set_translate(self.current_coil.hole_path, (hang_x, hang_y, coil_z))
 
 
 # ─── 啟動 ─────────────────────────────────────────────────────────
-controller = CycleCraneController()
+controller = RandomCraneController()
 
 def on_update(e):
     controller.update()
 
 update_sub = omni.kit.app.get_app().get_update_event_stream().create_subscription_to_pop(on_update)
 
+occupied_count = sum(1 for s in slots if s.has_coil)
+empty_count = sum(1 for s in slots if not s.has_coil)
 print("=" * 60)
-print("  35 噸鋼捲天車 — 循環吊運模擬")
+print("  35 噸鋼捲天車 — 隨機吊運模擬")
+print(f"  儲位數量: {NUM_SLOTS}")
+print(f"  鋼捲: {occupied_count} 顆 | 空位: {empty_count} 個")
 print(f"  靠岸點: ({PARK_POS[0]}, {PARK_POS[1]})")
-print(f"  A 儲位: ({A_POS[0]}, {A_POS[1]})")
-print(f"  B 儲位: ({B_POS[0]}, {B_POS[1]})")
-print("  路線: 靠岸→A夾取→B放下→靠岸→B夾取→A放下→靠岸→循環")
+print("  邏輯: 隨機選鋼捲 → 夾到空位 → 原位變空 → 循環")
 print("=" * 60)
-print("=== 第 1 趟開始 (A→B) ===")
