@@ -321,7 +321,7 @@ class AxisMotion:
         return new_pos, False
 
     def get_acceleration(self, dt):
-        """回傳當前加速度 (m/s²)，用於擺盪計算"""
+        """回傳當前加速度 (m/s²)，用於擺盪計算（無方向，需外部加方向）"""
         if dt > 0:
             return (self.velocity - self.prev_velocity) / dt
         return 0.0
@@ -332,7 +332,7 @@ class AxisMotion:
 # ═══════════════════════════════════════════════════════════════════
 
 GRAVITY = 9.81
-SWING_DAMPING = 0.3      # 擺盪阻尼係數（空氣阻力 + 結構阻尼）
+SWING_DAMPING = 0.8      # 擺盪阻尼係數（空氣阻力 + 結構阻尼 + 鋼纜摩擦）
 
 class PendulumSwing:
     """
@@ -579,24 +579,36 @@ class CycleCraneController:
         if dt <= 0:
             return
 
-        # 計算天車水平加速度（用於驅動擺盪）
-        bridge_accel = (self.bridge_x - self.prev_bridge_x) / dt if dt > 0 else 0
-        trolley_accel = (self.trolley_y - self.prev_trolley_y) / dt if dt > 0 else 0
-        # 二次差分近似加速度
-        bridge_accel = self.bridge_motion.get_acceleration(dt)
-        trolley_accel = self.trolley_motion.get_acceleration(dt)
+        # 用位置差分計算帶方向的速度和加速度
+        vel_x = (self.bridge_x - self.prev_bridge_x) / dt
+        vel_y = (self.trolley_y - self.prev_trolley_y) / dt
+
+        # 加速度 = 速度變化率（用儲存的前一幀速度）
+        if not hasattr(self, '_prev_vel_x'):
+            self._prev_vel_x = 0.0
+            self._prev_vel_y = 0.0
+
+        accel_x = (vel_x - self._prev_vel_x) / dt
+        accel_y = (vel_y - self._prev_vel_y) / dt
+
+        self._prev_vel_x = vel_x
+        self._prev_vel_y = vel_y
 
         # 鋼纜長度
         hook_z = self.hoist_z
         cable_length = max(trolley_z_base - hook_z - 0.3, 0.5)
 
-        # 更新擺盪（只有在吊著鋼捲或有殘餘擺盪時）
-        self.pendulum.update(cable_length, bridge_accel, trolley_accel, dt)
+        # 只在水平移動時才驅動擺盪，純升降不應引起擺盪
+        # 限制加速度輸入範圍，避免數值爆炸
+        accel_x = np.clip(accel_x, -5.0, 5.0)
+        accel_y = np.clip(accel_y, -5.0, 5.0)
 
-        # 更新鋼纜彈性（起吊/下降時的彈跳）
-        hoist_accel = self.hoist_motion.get_acceleration(dt)
-        # 起升加速時鋼纜會被拉伸（正偏移 = 鋼捲落後）
-        elastic_drive = -hoist_accel * 0.02 if self.holding else 0
+        self.pendulum.update(cable_length, accel_x, accel_y, dt)
+
+        # 鋼纜彈性（起吊/下降時的彈跳）
+        hoist_vel = (self.hoist_z - self.prev_hoist_z) / dt
+        # 起升加速時鋼纜拉伸
+        elastic_drive = -hoist_vel * 0.01 if self.holding else 0
         self.cable_elastic.update(elastic_drive, dt)
 
         self.prev_bridge_x = self.bridge_x
@@ -633,19 +645,18 @@ class CycleCraneController:
         hang_y = ty_pos + swing_dy
         hang_z = hook_z + elastic_dz
 
-        # 鋼纜（從小車到懸吊點，有擺盪角度）
-        # 鋼纜上端固定在小車，下端跟著擺盪
-        cable_top_x = bx
-        cable_top_y = ty_pos
-        cable_bot_x = hang_x
-        cable_bot_y = hang_y
-        cable_mid_x = (cable_top_x + cable_bot_x) / 2
-        cable_mid_y = (cable_top_y + cable_bot_y) / 2
-
-        set_translate("/World/Crane/Bridge/Cable_L", (cable_mid_x - 0.5, cable_mid_y, cable_center))
-        set_translate("/World/Crane/Bridge/Cable_R", (cable_mid_x + 0.5, cable_mid_y, cable_center))
-        set_scale("/World/Crane/Bridge/Cable_L", (0.05, 0.05, cable_length))
-        set_scale("/World/Crane/Bridge/Cable_R", (0.05, 0.05, cable_length))
+        # 鋼纜 — 上端固定在小車，下端連接夾具頂部（跟隨擺盪）
+        # 左纜：上端 (bx-0.5, ty_pos, trolley_z_base) → 下端 (hang_x-0.5, hang_y, hang_z+0.15)
+        # 右纜：上端 (bx+0.5, ty_pos, trolley_z_base) → 下端 (hang_x+0.5, hang_y, hang_z+0.15)
+        for side, x_off in [("L", -0.5), ("R", 0.5)]:
+            top_x = bx + x_off
+            top_y = ty_pos
+            bot_x = hang_x + x_off
+            bot_y = hang_y
+            mid_x = (top_x + bot_x) / 2
+            mid_y = (top_y + bot_y) / 2
+            set_translate(f"/World/Crane/Bridge/Cable_{side}", (mid_x, mid_y, cable_center))
+            set_scale(f"/World/Crane/Bridge/Cable_{side}", (0.05, 0.05, cable_length))
 
         # L 型鉤臂夾具（整體跟隨擺盪）
         set_translate("/World/Crane/Bridge/Clamp_Top", (hang_x, hang_y, hang_z))
