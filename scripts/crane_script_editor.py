@@ -624,38 +624,47 @@ class CycleCraneController:
         set_translate("/World/Crane/Bridge/HoistBox", (bx, ty_pos, trolley_z_base + 1.0))
         set_translate("/World/Crane/Bridge/Drum", (bx, ty_pos, trolley_z_base + 1.8))
 
-        # 鋼纜
-        set_translate("/World/Crane/Bridge/Cable_L", (bx - 0.5, ty_pos, cable_center))
-        set_translate("/World/Crane/Bridge/Cable_R", (bx + 0.5, ty_pos, cable_center))
+        # 擺盪偏移（作用在整個懸吊體：鋼纜下端 + 夾具 + 鋼捲）
+        swing_dx, swing_dy = self.pendulum.get_offset(cable_length)
+        elastic_dz = self.cable_elastic.coil_z_offset if self.holding else 0
+
+        # 懸吊點位置（夾具頂部，受擺盪影響）
+        hang_x = bx + swing_dx
+        hang_y = ty_pos + swing_dy
+        hang_z = hook_z + elastic_dz
+
+        # 鋼纜（從小車到懸吊點，有擺盪角度）
+        # 鋼纜上端固定在小車，下端跟著擺盪
+        cable_top_x = bx
+        cable_top_y = ty_pos
+        cable_bot_x = hang_x
+        cable_bot_y = hang_y
+        cable_mid_x = (cable_top_x + cable_bot_x) / 2
+        cable_mid_y = (cable_top_y + cable_bot_y) / 2
+
+        set_translate("/World/Crane/Bridge/Cable_L", (cable_mid_x - 0.5, cable_mid_y, cable_center))
+        set_translate("/World/Crane/Bridge/Cable_R", (cable_mid_x + 0.5, cable_mid_y, cable_center))
         set_scale("/World/Crane/Bridge/Cable_L", (0.05, 0.05, cable_length))
         set_scale("/World/Crane/Bridge/Cable_R", (0.05, 0.05, cable_length))
 
-        # L 型鉤臂夾具
-        set_translate("/World/Crane/Bridge/Clamp_Top", (bx, ty_pos, hook_z))
+        # L 型鉤臂夾具（整體跟隨擺盪）
+        set_translate("/World/Crane/Bridge/Clamp_Top", (hang_x, hang_y, hang_z))
 
-        # 左 L 鉤 — 垂直段在 Y- 側，水平段向 +Y 伸入
-        hook_l_y = ty_pos - co
-        set_translate("/World/Crane/Bridge/HookL_Vert", (bx, hook_l_y, hook_z - 1.1))
-        set_translate("/World/Crane/Bridge/HookL_Foot", (bx, hook_l_y + HOOK_FOOT_LEN / 2, hook_z - 2.1))
+        # 左 L 鉤
+        hook_l_y = hang_y - co
+        set_translate("/World/Crane/Bridge/HookL_Vert", (hang_x, hook_l_y, hang_z - 1.1))
+        set_translate("/World/Crane/Bridge/HookL_Foot", (hang_x, hook_l_y + HOOK_FOOT_LEN / 2, hang_z - 2.1))
 
-        # 右 L 鉤 — 垂直段在 Y+ 側，水平段向 -Y 伸入
-        hook_r_y = ty_pos + co
-        set_translate("/World/Crane/Bridge/HookR_Vert", (bx, hook_r_y, hook_z - 1.1))
-        set_translate("/World/Crane/Bridge/HookR_Foot", (bx, hook_r_y - HOOK_FOOT_LEN / 2, hook_z - 2.1))
+        # 右 L 鉤
+        hook_r_y = hang_y + co
+        set_translate("/World/Crane/Bridge/HookR_Vert", (hang_x, hook_r_y, hang_z - 1.1))
+        set_translate("/World/Crane/Bridge/HookR_Foot", (hang_x, hook_r_y - HOOK_FOOT_LEN / 2, hang_z - 2.1))
 
-        # 鋼捲跟隨 + 擺盪偏移 + 鋼纜彈性
+        # 鋼捲跟隨（與夾具為一體剛體，相同擺盪）
         if self.holding:
-            # 擺盪偏移
-            swing_dx, swing_dy = self.pendulum.get_offset(cable_length)
-            # 鋼纜彈性 Z 偏移
-            elastic_dz = self.cable_elastic.coil_z_offset
-
-            coil_x = bx + swing_dx
-            coil_y = ty_pos + swing_dy
-            coil_z = hook_z - 2.1 + elastic_dz
-
-            set_translate(COIL_PATH, (coil_x, coil_y, coil_z))
-            set_translate(COIL_HOLE_PATH, (coil_x, coil_y, coil_z))
+            coil_z = hang_z - 2.1
+            set_translate(COIL_PATH, (hang_x, hang_y, coil_z))
+            set_translate(COIL_HOLE_PATH, (hang_x, hang_y, coil_z))
 
 
 # ─── 啟動 ─────────────────────────────────────────────────────────
