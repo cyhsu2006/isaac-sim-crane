@@ -332,7 +332,7 @@ class AxisMotion:
 # ═══════════════════════════════════════════════════════════════════
 
 GRAVITY = 9.81
-SWING_DAMPING = 0.8      # 擺盪阻尼係數（空氣阻力 + 結構阻尼 + 鋼纜摩擦）
+SWING_DAMPING = 0.4      # 擺盪阻尼係數（適中，停下後可見 3-5 次擺盪再衰減）
 
 class PendulumSwing:
     """
@@ -485,24 +485,24 @@ class CycleCraneController:
 
         # (name, bridge_x, trolley_y, hoist_z, clamp, holding, pause)
         self.steps = [
-            # 從靠岸點出發，移到取貨點上方
-            ("移動到取貨點上方",   pick[0], pick[1], LIFT_HEIGHT, CLAMP_OPEN,   False, 0.5),
+            # 從靠岸點出發，移到取貨點上方（水平移動後等擺盪衰減）
+            ("移動到取貨點上方",   pick[0], pick[1], LIFT_HEIGHT, CLAMP_OPEN,   False, 3.0),
             # 下降到鋼捲
-            ("下降到鋼捲",        pick[0], pick[1], hz_pick,     CLAMP_OPEN,   False, 0.3),
-            # 夾具擴張夾取
+            ("下降到鋼捲",        pick[0], pick[1], hz_pick,     CLAMP_OPEN,   False, 0.5),
+            # 夾具合攏夾取
             ("夾取鋼捲",          pick[0], pick[1], hz_pick,     CLAMP_CLOSED, False, 1.0),
             # 起吊
-            ("起吊",              pick[0], pick[1], LIFT_HEIGHT, CLAMP_CLOSED, True,  0.3),
-            # 移到放貨點上方
-            ("移動到放貨點上方",   drop[0], drop[1], LIFT_HEIGHT, CLAMP_CLOSED, True,  0.5),
+            ("起吊",              pick[0], pick[1], LIFT_HEIGHT, CLAMP_CLOSED, True,  1.0),
+            # 移到放貨點上方（水平移動後等擺盪衰減）
+            ("移動到放貨點上方",   drop[0], drop[1], LIFT_HEIGHT, CLAMP_CLOSED, True,  4.0),
             # 下降放置
-            ("下降放置",          drop[0], drop[1], hz_drop,     CLAMP_CLOSED, True,  0.3),
+            ("下降放置",          drop[0], drop[1], hz_drop,     CLAMP_CLOSED, True,  0.5),
             # 夾具收縮釋放
             ("釋放鋼捲",          drop[0], drop[1], hz_drop,     CLAMP_OPEN,   False, 1.0),
             # 空載上升
-            ("空載上升",          drop[0], drop[1], LIFT_HEIGHT, CLAMP_OPEN,   False, 0.3),
-            # 回到靠岸點
-            ("回到靠岸點",  PARK_POS[0], PARK_POS[1], LIFT_HEIGHT, CLAMP_OPEN, False, 1.5),
+            ("空載上升",          drop[0], drop[1], LIFT_HEIGHT, CLAMP_OPEN,   False, 0.5),
+            # 回到靠岸點（水平移動後等擺盪衰減）
+            ("回到靠岸點",  PARK_POS[0], PARK_POS[1], LIFT_HEIGHT, CLAMP_OPEN, False, 3.0),
         ]
 
     def update(self):
