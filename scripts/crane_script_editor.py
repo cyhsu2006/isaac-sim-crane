@@ -543,8 +543,7 @@ class RandomCraneController:
             ("移動到放貨點上方",  drop.x, drop.y, LIFT_HEIGHT, CLAMP_CLOSED, True,  4.0),
             ("下降放置",         drop.x, drop.y, hz_drop,     CLAMP_CLOSED, True,  0.5),
             ("釋放鋼捲",         drop.x, drop.y, hz_drop,     CLAMP_OPEN,   False, 1.0),
-            ("空載上升",         drop.x, drop.y, LIFT_HEIGHT, CLAMP_OPEN,   False, 0.5),
-            ("回到靠岸點", PARK_POS[0], PARK_POS[1], LIFT_HEIGHT, CLAMP_OPEN, False, 2.0),
+            ("空載上升",         drop.x, drop.y, LIFT_HEIGHT, CLAMP_OPEN,   False, 0.3),
         ]
         self.step_idx = 0
 
