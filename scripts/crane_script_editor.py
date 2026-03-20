@@ -114,6 +114,16 @@ def set_translate(path, pos):
             return
 
 
+def set_rotate(path, rot):
+    prim = stage.GetPrimAtPath(path)
+    if not prim:
+        return
+    for op in UsdGeom.Xformable(prim).GetOrderedXformOps():
+        if op.GetOpType() == UsdGeom.XformOp.TypeRotateXYZ:
+            op.Set(Gf.Vec3d(*rot))
+            return
+
+
 def set_scale(path, scale):
     prim = stage.GetPrimAtPath(f"{path}/mesh")
     if not prim:
@@ -122,6 +132,26 @@ def set_scale(path, scale):
         if op.GetOpType() == UsdGeom.XformOp.TypeScale:
             op.Set(Gf.Vec3d(*scale))
             return
+
+
+def set_cylinder_height(path, height):
+    prim = stage.GetPrimAtPath(f"{path}/mesh")
+    if not prim:
+        return
+    cyl = UsdGeom.Cylinder(prim)
+    cyl.GetHeightAttr().Set(height)
+
+
+def make_cable(path, radius, height, pos, color):
+    """建立可旋轉的纜繩圓柱體（預設軸 Z，帶 translate + rotate）"""
+    UsdGeom.Xform.Define(stage, path)
+    xf = UsdGeom.Xformable(stage.GetPrimAtPath(path))
+    xf.AddTranslateOp().Set(Gf.Vec3d(*pos))
+    xf.AddRotateXYZOp().Set(Gf.Vec3d(0, 0, 0))
+    cyl = UsdGeom.Cylinder.Define(stage, f"{path}/mesh")
+    cyl.GetRadiusAttr().Set(radius)
+    cyl.GetHeightAttr().Set(height)
+    cyl.GetDisplayColorAttr().Set([color])
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -234,8 +264,14 @@ make_box("/World/Crane/Bridge/Trolley", (2.5, 3.0, 0.8), (0, 0, trolley_z_base),
 make_box("/World/Crane/Bridge/HoistBox", (2.0, 2.2, 1.2), (0, 0, trolley_z_base + 1.0), DARK_YELLOW)
 make_cylinder("/World/Crane/Bridge/Drum", 0.4, 1.5, (0, 0, trolley_z_base + 1.8), DARK_GRAY, rot=(90, 0, 0))
 
-make_box("/World/Crane/Bridge/Cable_L", (0.05, 0.05, 10), (-0.5, 0, 10), CABLE_COLOR)
-make_box("/World/Crane/Bridge/Cable_R", (0.05, 0.05, 10), (0.5, 0, 10), CABLE_COLOR)
+# 鋼纜（圓柱體 + 旋轉，可傾斜）
+# 一條纜繩穿過動滑輪形成兩段，Y 方向分開（平行夾具開合方向）
+CABLE_RADIUS = 0.025     # 纜繩半徑
+PULLEY_RADIUS = 0.15     # 動滑輪半徑
+CABLE_Y_OFFSET = 0.2     # 兩段纜繩 Y 方向間距（動滑輪寬度的一半）
+
+make_cable("/World/Crane/Bridge/Cable_L", CABLE_RADIUS, 10, (0, -CABLE_Y_OFFSET, 10), CABLE_COLOR)
+make_cable("/World/Crane/Bridge/Cable_R", CABLE_RADIUS, 10, (0, CABLE_Y_OFFSET, 10), CABLE_COLOR)
 
 # ═══════════════════════════════════════════════════════════════════
 # L 型鉤臂夾具
@@ -250,7 +286,10 @@ HOOK_VERT_W = 0.15      # 垂直段寬（X）
 HOOK_FOOT_H = 0.15      # 水平段高度（Z）
 HOOK_FOOT_W = 0.15      # 水平段寬（X）
 
-# 上橫樑（連接鋼纜）
+# 動滑輪（夾具頂部，X 軸方向旋轉的小圓柱）
+make_cylinder("/World/Crane/Bridge/Pulley", PULLEY_RADIUS, 0.5, (0, 0, hz_def + 0.3), DARK_GRAY, rot=(90, 0, 0))
+
+# 上橫樑（連接動滑輪下方）
 make_box("/World/Crane/Bridge/Clamp_Top", (1.2, 2.0, 0.3), (0, 0, hz_def), ORANGE)
 
 # 左 L 鉤臂 — 垂直段（在鋼捲左側 Y- 方向）
@@ -645,13 +684,45 @@ class CycleCraneController:
         hang_y = ty_pos + swing_dy
         hang_z = hook_z + elastic_dz
 
-        # 鋼纜 — 跟隨夾具擺盪位置，從夾具頂部向上延伸到小車高度
-        # 鋼纜中心 X/Y 跟隨懸吊點（擺盪位置），確保下端永遠連著夾具
-        for side, x_off in [("L", -0.5), ("R", 0.5)]:
-            set_translate(f"/World/Crane/Bridge/Cable_{side}",
-                          (hang_x + x_off, hang_y, cable_center))
-            set_scale(f"/World/Crane/Bridge/Cable_{side}",
-                      (0.05, 0.05, cable_length))
+        # 鋼纜（圓柱體 + 旋轉）
+        # 上端固定在小車絞盤，下端固定在動滑輪（跟隨擺盪）
+        # 兩段纜繩沿 Y 方向分開（平行夾具開合方向）
+        pulley_z = hang_z + 0.3  # 動滑輪位置
+
+        for side, y_off in [("L", -CABLE_Y_OFFSET), ("R", CABLE_Y_OFFSET)]:
+            # 上端（小車絞盤）
+            top_x = bx
+            top_y = ty_pos + y_off
+            top_z = trolley_z_base
+            # 下端（動滑輪）
+            bot_x = hang_x
+            bot_y = hang_y + y_off
+            bot_z = pulley_z
+
+            # 纜繩中點
+            mid_x = (top_x + bot_x) / 2
+            mid_y = (top_y + bot_y) / 2
+            mid_z = (top_z + bot_z) / 2
+
+            # 實際纜繩長度（含傾斜）
+            dx = bot_x - top_x
+            dy = bot_y - top_y
+            dz = bot_z - top_z
+            actual_length = np.sqrt(dx**2 + dy**2 + dz**2)
+
+            # 計算傾斜角度（度）
+            # 圓柱預設軸 Z，需旋轉使其對齊 top→bot 方向
+            # X 旋轉：Y-Z 平面傾斜（小車 Y 方向移動引起）
+            # Y 旋轉：X-Z 平面傾斜（大車 X 方向移動引起）
+            rot_x = np.degrees(np.arctan2(dy, -dz)) if abs(dz) > 0.01 else 0
+            rot_y = np.degrees(np.arctan2(-dx, -dz)) if abs(dz) > 0.01 else 0
+
+            set_translate(f"/World/Crane/Bridge/Cable_{side}", (mid_x, mid_y, mid_z))
+            set_rotate(f"/World/Crane/Bridge/Cable_{side}", (rot_x, rot_y, 0))
+            set_cylinder_height(f"/World/Crane/Bridge/Cable_{side}", actual_length)
+
+        # 動滑輪（跟隨夾具擺盪）
+        set_translate("/World/Crane/Bridge/Pulley", (hang_x, hang_y, pulley_z))
 
         # L 型鉤臂夾具（整體跟隨擺盪）
         set_translate("/World/Crane/Bridge/Clamp_Top", (hang_x, hang_y, hang_z))
