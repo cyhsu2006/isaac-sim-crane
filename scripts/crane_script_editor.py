@@ -41,14 +41,11 @@ CLAMP_DECEL = 0.8        # 夾具減速度
 # L 型鉤臂夾具（左右從鋼捲兩端伸入內孔）
 HOOK_VERT_D = 0.12      # 垂直段厚度（Y 方向）
 HOOK_FOOT_LEN = 0.45    # 水平段長度（Y 方向，伸入長度）
-# CLAMP_OPEN：張開，底部水平段尖端要完全超過鋼捲外側
-#   水平段尖端 Y = -co + HOOK_FOOT_LEN，需 < -COIL_WIDTH/2
-#   所以 co > COIL_WIDTH/2 + HOOK_FOOT_LEN
-CLAMP_OPEN = COIL_WIDTH / 2 + HOOK_FOOT_LEN + 0.05   # ≈1.1m，水平段完全在鋼捲外
+# 夾具開合方向：X 軸（平行鋼捲軸心，從前後伸入內孔）
+# CLAMP_OPEN：張開，底部水平段尖端完全超過鋼捲外側
+CLAMP_OPEN = COIL_WIDTH / 2 + HOOK_FOOT_LEN + 0.05   # ≈1.1m
 # CLAMP_CLOSED：收合，垂直段內側面碰到鋼捲端面即停
-#   垂直段內側面 Y = -co + HOOK_VERT_D/2，需 = -COIL_WIDTH/2
-#   所以 co = COIL_WIDTH/2 + HOOK_VERT_D/2
-CLAMP_CLOSED = COIL_WIDTH / 2 + HOOK_VERT_D / 2      # ≈0.66m，剛好碰到鋼捲端面
+CLAMP_CLOSED = COIL_WIDTH / 2 + HOOK_VERT_D / 2      # ≈0.66m
 
 # 座標定義
 PARK_POS = (-18.0, 0.0)     # 靠岸點（軌道最左側）
@@ -183,12 +180,12 @@ make_box("/World/Warehouse/ParkZone", (4, 4, 0.03), (PARK_POS[0], PARK_POS[1], 0
 make_box("/World/Warehouse/ParkText", (1.5, 0.5, 0.02), (PARK_POS[0], PARK_POS[1] - 2.5, 0.02), Gf.Vec3f(0.5, 0.5, 0.2))
 
 # A 點枕木
-make_box("/World/Warehouse/ChockA_L", (0.2, COIL_WIDTH + 0.2, 0.3), (A_POS[0] - 0.5, A_POS[1], 0.15), CHOCK_COLOR)
-make_box("/World/Warehouse/ChockA_R", (0.2, COIL_WIDTH + 0.2, 0.3), (A_POS[0] + 0.5, A_POS[1], 0.15), CHOCK_COLOR)
+make_box("/World/Warehouse/ChockA_L", (COIL_WIDTH + 0.2, 0.2, 0.3), (A_POS[0], A_POS[1] - 0.5, 0.15), CHOCK_COLOR)
+make_box("/World/Warehouse/ChockA_R", (COIL_WIDTH + 0.2, 0.2, 0.3), (A_POS[0], A_POS[1] + 0.5, 0.15), CHOCK_COLOR)
 
 # B 點枕木
-make_box("/World/Warehouse/ChockB_L", (0.2, COIL_WIDTH + 0.2, 0.3), (B_POS[0] - 0.5, B_POS[1], 0.15), CHOCK_COLOR)
-make_box("/World/Warehouse/ChockB_R", (0.2, COIL_WIDTH + 0.2, 0.3), (B_POS[0] + 0.5, B_POS[1], 0.15), CHOCK_COLOR)
+make_box("/World/Warehouse/ChockB_L", (COIL_WIDTH + 0.2, 0.2, 0.3), (B_POS[0], B_POS[1] - 0.5, 0.15), CHOCK_COLOR)
+make_box("/World/Warehouse/ChockB_R", (COIL_WIDTH + 0.2, 0.2, 0.3), (B_POS[0], B_POS[1] + 0.5, 0.15), CHOCK_COLOR)
 
 # 其他倉庫內鋼捲（背景裝飾，不參與吊運）
 bg_coils = [
@@ -203,11 +200,11 @@ for i, (cx, cy) in enumerate(bg_coils):
     col = Gf.Vec3f(0.45 + np.random.uniform(0, 0.1),
                    0.45 + np.random.uniform(0, 0.1),
                    0.48 + np.random.uniform(0, 0.1))
-    make_box(f"/World/Coils/BgChock_{i}_L", (0.2, w + 0.2, 0.3), (cx - 0.5, cy, 0.15), CHOCK_COLOR)
-    make_box(f"/World/Coils/BgChock_{i}_R", (0.2, w + 0.2, 0.3), (cx + 0.5, cy, 0.15), CHOCK_COLOR)
-    make_cylinder(f"/World/Coils/BgCoil_{i}", r, w, (cx, cy, r + 0.3), col, rot=(90, 0, 0))
+    make_box(f"/World/Coils/BgChock_{i}_L", (w + 0.2, 0.2, 0.3), (cx, cy - 0.5, 0.15), CHOCK_COLOR)
+    make_box(f"/World/Coils/BgChock_{i}_R", (w + 0.2, 0.2, 0.3), (cx, cy + 0.5, 0.15), CHOCK_COLOR)
+    make_cylinder(f"/World/Coils/BgCoil_{i}", r, w, (cx, cy, r + 0.3), col, rot=(0, 90, 0))
     make_cylinder(f"/World/Coils/BgHole_{i}", COIL_INNER_R, w + 0.02, (cx, cy, r + 0.3),
-                  Gf.Vec3f(0.08, 0.08, 0.08), rot=(90, 0, 0))
+                  Gf.Vec3f(0.08, 0.08, 0.08), rot=(0, 90, 0))
 
 # 頂燈
 for i, x in enumerate(np.linspace(-15, 15, 4)):
@@ -235,9 +232,9 @@ COIL_PATH = "/World/Coils/ActiveCoil"
 COIL_HOLE_PATH = "/World/Coils/ActiveCoil_Hole"
 
 make_cylinder(COIL_PATH, COIL_OUTER_R, COIL_WIDTH,
-              (A_POS[0], A_POS[1], COIL_Z_ON_CHOCK), STEEL_COLOR, rot=(90, 0, 0))
+              (A_POS[0], A_POS[1], COIL_Z_ON_CHOCK), STEEL_COLOR, rot=(0, 90, 0))
 make_cylinder(COIL_HOLE_PATH, COIL_INNER_R, COIL_WIDTH + 0.02,
-              (A_POS[0], A_POS[1], COIL_Z_ON_CHOCK), Gf.Vec3f(0.08, 0.08, 0.08), rot=(90, 0, 0))
+              (A_POS[0], A_POS[1], COIL_Z_ON_CHOCK), Gf.Vec3f(0.08, 0.08, 0.08), rot=(0, 90, 0))
 
 # ═══════════════════════════════════════════════════════════════════
 # 天車結構
@@ -292,19 +289,19 @@ make_cylinder("/World/Crane/Bridge/Pulley", PULLEY_RADIUS, 0.5, (0, 0, hz_def + 
 # 上橫樑（連接動滑輪下方）
 make_box("/World/Crane/Bridge/Clamp_Top", (1.2, 2.0, 0.3), (0, 0, hz_def), ORANGE)
 
-# 左 L 鉤臂 — 垂直段（在鋼捲左側 Y- 方向）
-make_box("/World/Crane/Bridge/HookL_Vert", (HOOK_VERT_W, HOOK_VERT_D, HOOK_VERT_H),
-         (0, -CLAMP_OPEN, hz_def - 1.1), ORANGE)
-# 左 L 鉤臂 — 水平段（底部向內伸入，+Y 方向）
-make_box("/World/Crane/Bridge/HookL_Foot", (HOOK_FOOT_W, HOOK_FOOT_LEN, HOOK_FOOT_H),
-         (0, -CLAMP_OPEN + HOOK_FOOT_LEN / 2, hz_def - 2.1), RED)
+# 左 L 鉤臂 — 垂直段（在鋼捲前側 X- 方向）
+make_box("/World/Crane/Bridge/HookL_Vert", (HOOK_VERT_D, HOOK_VERT_W, HOOK_VERT_H),
+         (-CLAMP_OPEN, 0, hz_def - 1.1), ORANGE)
+# 左 L 鉤臂 — 水平段（底部向內伸入，+X 方向）
+make_box("/World/Crane/Bridge/HookL_Foot", (HOOK_FOOT_LEN, HOOK_FOOT_W, HOOK_FOOT_H),
+         (-CLAMP_OPEN + HOOK_FOOT_LEN / 2, 0, hz_def - 2.1), RED)
 
-# 右 L 鉤臂 — 垂直段（在鋼捲右側 Y+ 方向）
-make_box("/World/Crane/Bridge/HookR_Vert", (HOOK_VERT_W, HOOK_VERT_D, HOOK_VERT_H),
-         (0, CLAMP_OPEN, hz_def - 1.1), ORANGE)
-# 右 L 鉤臂 — 水平段（底部向內伸入，-Y 方向）
-make_box("/World/Crane/Bridge/HookR_Foot", (HOOK_FOOT_W, HOOK_FOOT_LEN, HOOK_FOOT_H),
-         (0, CLAMP_OPEN - HOOK_FOOT_LEN / 2, hz_def - 2.1), RED)
+# 右 L 鉤臂 — 垂直段（在鋼捲後側 X+ 方向）
+make_box("/World/Crane/Bridge/HookR_Vert", (HOOK_VERT_D, HOOK_VERT_W, HOOK_VERT_H),
+         (CLAMP_OPEN, 0, hz_def - 1.1), ORANGE)
+# 右 L 鉤臂 — 水平段（底部向內伸入，-X 方向）
+make_box("/World/Crane/Bridge/HookR_Foot", (HOOK_FOOT_LEN, HOOK_FOOT_W, HOOK_FOOT_H),
+         (CLAMP_OPEN - HOOK_FOOT_LEN / 2, 0, hz_def - 2.1), RED)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -724,18 +721,18 @@ class CycleCraneController:
         # 動滑輪（跟隨夾具擺盪）
         set_translate("/World/Crane/Bridge/Pulley", (hang_x, hang_y, pulley_z))
 
-        # L 型鉤臂夾具（整體跟隨擺盪）
+        # L 型鉤臂夾具（整體跟隨擺盪，開合方向 X）
         set_translate("/World/Crane/Bridge/Clamp_Top", (hang_x, hang_y, hang_z))
 
-        # 左 L 鉤
-        hook_l_y = hang_y - co
-        set_translate("/World/Crane/Bridge/HookL_Vert", (hang_x, hook_l_y, hang_z - 1.1))
-        set_translate("/World/Crane/Bridge/HookL_Foot", (hang_x, hook_l_y + HOOK_FOOT_LEN / 2, hang_z - 2.1))
+        # 左 L 鉤（X- 側，水平段向 +X 伸入）
+        hook_l_x = hang_x - co
+        set_translate("/World/Crane/Bridge/HookL_Vert", (hook_l_x, hang_y, hang_z - 1.1))
+        set_translate("/World/Crane/Bridge/HookL_Foot", (hook_l_x + HOOK_FOOT_LEN / 2, hang_y, hang_z - 2.1))
 
-        # 右 L 鉤
-        hook_r_y = hang_y + co
-        set_translate("/World/Crane/Bridge/HookR_Vert", (hang_x, hook_r_y, hang_z - 1.1))
-        set_translate("/World/Crane/Bridge/HookR_Foot", (hang_x, hook_r_y - HOOK_FOOT_LEN / 2, hang_z - 2.1))
+        # 右 L 鉤（X+ 側，水平段向 -X 伸入）
+        hook_r_x = hang_x + co
+        set_translate("/World/Crane/Bridge/HookR_Vert", (hook_r_x, hang_y, hang_z - 1.1))
+        set_translate("/World/Crane/Bridge/HookR_Foot", (hook_r_x - HOOK_FOOT_LEN / 2, hang_y, hang_z - 2.1))
 
         # 鋼捲跟隨（與夾具為一體剛體，相同擺盪）
         if self.holding:
