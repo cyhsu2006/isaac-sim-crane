@@ -22,10 +22,21 @@ COIL_OUTER_R = 0.90
 COIL_WIDTH = 1.20
 COIL_Z_ON_CHOCK = COIL_OUTER_R + 0.3
 
+# 各軸最大速度 (m/s)
 BRIDGE_SPEED = 2.5
 TROLLEY_SPEED = 1.8
 HOIST_SPEED = 1.5
 CLAMP_SPEED = 0.6
+
+# 各軸加速度 (m/s²) — 真實天車參數
+BRIDGE_ACCEL = 0.4       # 大車加速度（較重，加速慢）
+BRIDGE_DECEL = 0.5       # 大車減速度（煞車略快於加速）
+TROLLEY_ACCEL = 0.5      # 小車加速度
+TROLLEY_DECEL = 0.6      # 小車減速度
+HOIST_ACCEL = 0.3        # 起升加速度（載重大，加速最慢）
+HOIST_DECEL = 0.4        # 起升減速度
+CLAMP_ACCEL = 0.8        # 夾具加速度（輕，反應快）
+CLAMP_DECEL = 0.8        # 夾具減速度
 
 # L 型鉤臂夾具（左右從鋼捲兩端伸入內孔）
 HOOK_VERT_D = 0.12      # 垂直段厚度（Y 方向）
@@ -258,7 +269,56 @@ make_box("/World/Crane/Bridge/HookR_Foot", (HOOK_FOOT_W, HOOK_FOOT_LEN, HOOK_FOO
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 循環吊運控制器
+# 梯形速度曲線運動控制
+# ═══════════════════════════════════════════════════════════════════
+
+class AxisMotion:
+    """單軸運動控制器 — 梯形速度曲線（加速→巡航→減速）"""
+
+    def __init__(self, max_speed, accel, decel):
+        self.max_speed = max_speed
+        self.accel = accel
+        self.decel = decel
+        self.velocity = 0.0  # 當前速度 (m/s)
+
+    def update(self, current, target, dt):
+        """
+        更新位置，回傳 (new_position, reached)
+        使用梯形速度曲線：
+        - 計算剩餘距離
+        - 判斷應該加速、巡航、還是減速
+        - 減速距離 = v² / (2 * decel)
+        """
+        error = target - current
+        distance = abs(error)
+
+        if distance < 0.01:
+            # 已到達
+            self.velocity = 0.0
+            return target, True
+
+        direction = np.sign(error)
+
+        # 需要多少距離才能從當前速度減到 0
+        braking_distance = (self.velocity ** 2) / (2.0 * self.decel) if self.decel > 0 else 0
+
+        if distance <= braking_distance + 0.01:
+            # 需要減速
+            self.velocity = max(self.velocity - self.decel * dt, 0.05)
+        elif abs(self.velocity) < self.max_speed:
+            # 加速階段
+            self.velocity = min(self.velocity + self.accel * dt, self.max_speed)
+        # else: 巡航（速度不變）
+
+        # 限制移動距離不超過剩餘距離
+        move = min(self.velocity * dt, distance)
+        new_pos = current + direction * move
+
+        return new_pos, False
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 循環吊運控制器（含加減速）
 # 路線：靠岸 → A夾取 → B放下 → 靠岸 → B夾取 → A放下 → 靠岸 → 循環
 # ═══════════════════════════════════════════════════════════════════
 
@@ -268,6 +328,12 @@ class CycleCraneController:
         self.trolley_y = PARK_POS[1]
         self.hoist_z = LIFT_HEIGHT
         self.clamp = CLAMP_OPEN
+
+        # 各軸獨立運動控制器
+        self.bridge_motion = AxisMotion(BRIDGE_SPEED, BRIDGE_ACCEL, BRIDGE_DECEL)
+        self.trolley_motion = AxisMotion(TROLLEY_SPEED, TROLLEY_ACCEL, TROLLEY_DECEL)
+        self.hoist_motion = AxisMotion(HOIST_SPEED, HOIST_ACCEL, HOIST_DECEL)
+        self.clamp_motion = AxisMotion(CLAMP_SPEED, CLAMP_ACCEL, CLAMP_DECEL)
         self.holding = False
 
         # 鋼捲目前位置（開始在 A 點）
@@ -335,31 +401,24 @@ class CycleCraneController:
 
         step = self.steps[self.step_idx]
         name, tx, ty, tz, tc, hold, pause = step
-        reached = True
 
-        d = tx - self.bridge_x
-        if abs(d) > 0.05:
-            self.bridge_x += np.sign(d) * min(BRIDGE_SPEED * dt, abs(d))
-            reached = False
+        # 各軸使用梯形速度曲線（加速→巡航→減速）
+        self.bridge_x, bx_done = self.bridge_motion.update(self.bridge_x, tx, dt)
+        self.trolley_y, ty_done = self.trolley_motion.update(self.trolley_y, ty, dt)
+        self.hoist_z, hz_done = self.hoist_motion.update(self.hoist_z, tz, dt)
+        self.clamp, cl_done = self.clamp_motion.update(self.clamp, tc, dt)
 
-        d = ty - self.trolley_y
-        if abs(d) > 0.05:
-            self.trolley_y += np.sign(d) * min(TROLLEY_SPEED * dt, abs(d))
-            reached = False
-
-        d = tz - self.hoist_z
-        if abs(d) > 0.05:
-            self.hoist_z += np.sign(d) * min(HOIST_SPEED * dt, abs(d))
-            reached = False
-
-        d = tc - self.clamp
-        if abs(d) > 0.02:
-            self.clamp += np.sign(d) * min(CLAMP_SPEED * dt, abs(d))
-            reached = False
+        reached = bx_done and ty_done and hz_done and cl_done
 
         self.holding = hold
 
         if reached:
+            # 到達目標，各軸速度歸零
+            self.bridge_motion.velocity = 0.0
+            self.trolley_motion.velocity = 0.0
+            self.hoist_motion.velocity = 0.0
+            self.clamp_motion.velocity = 0.0
+
             self.pause_timer = pause
             print(f"  [{self.cycle_count + 1}] {name}")
 
