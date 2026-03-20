@@ -645,18 +645,13 @@ class CycleCraneController:
         hang_y = ty_pos + swing_dy
         hang_z = hook_z + elastic_dz
 
-        # 鋼纜 — 上端固定在小車，下端連接夾具頂部（跟隨擺盪）
-        # 左纜：上端 (bx-0.5, ty_pos, trolley_z_base) → 下端 (hang_x-0.5, hang_y, hang_z+0.15)
-        # 右纜：上端 (bx+0.5, ty_pos, trolley_z_base) → 下端 (hang_x+0.5, hang_y, hang_z+0.15)
+        # 鋼纜 — 跟隨夾具擺盪位置，從夾具頂部向上延伸到小車高度
+        # 鋼纜中心 X/Y 跟隨懸吊點（擺盪位置），確保下端永遠連著夾具
         for side, x_off in [("L", -0.5), ("R", 0.5)]:
-            top_x = bx + x_off
-            top_y = ty_pos
-            bot_x = hang_x + x_off
-            bot_y = hang_y
-            mid_x = (top_x + bot_x) / 2
-            mid_y = (top_y + bot_y) / 2
-            set_translate(f"/World/Crane/Bridge/Cable_{side}", (mid_x, mid_y, cable_center))
-            set_scale(f"/World/Crane/Bridge/Cable_{side}", (0.05, 0.05, cable_length))
+            set_translate(f"/World/Crane/Bridge/Cable_{side}",
+                          (hang_x + x_off, hang_y, cable_center))
+            set_scale(f"/World/Crane/Bridge/Cable_{side}",
+                      (0.05, 0.05, cable_length))
 
         # L 型鉤臂夾具（整體跟隨擺盪）
         set_translate("/World/Crane/Bridge/Clamp_Top", (hang_x, hang_y, hang_z))
